@@ -126,6 +126,15 @@ async function listMakerTools(workdir) {
     params: { target_dir: workdir },
     timeoutMs: 60000,
   });
+  var access = isObject(result) && isObject(result._meta) ? result._meta.maker_access : null;
+  if (isObject(access) && access.code === 'BLACKLISTED') {
+    return makerErrorResult(
+      typeof access.message === 'string' && access.message
+        ? redactSensitiveText(access.message, true)
+        : '当前 Maker 账号已被限制，请检查账号权限。',
+      { code: 'BLACKLISTED', execution_state: 'not_executed', automatic_retry: false },
+    );
+  }
   var tools = isObject(result) && Array.isArray(result.tools) ? result.tools : [];
   return tools.filter(function visible(tool) {
     return isObject(tool) && typeof tool.name === 'string' && !FIXED_MAKER_TOOLS[tool.name];
@@ -133,6 +142,39 @@ async function listMakerTools(workdir) {
 }
 
 async function callMakerTool(name, args, longRunning) {
+  var preferenceKey;
+  var mediaLabel;
+  if (name === 'generate_image' || name === 'batch_generate_images' || name === 'edit_image') {
+    preferenceKey = 'makerImageEnabled';
+    mediaLabel = '生图';
+  } else if (name === 'create_video_task') {
+    preferenceKey = 'makerVideoEnabled';
+    mediaLabel = '生视频';
+  } else if (['text_to_music', 'text_to_sound_effect', 'batch_sound_effects', 'text_to_dialogue',
+    'audition_voices_for_character', 'confirm_character_voice'].includes(name)) {
+    preferenceKey = 'makerAudioEnabled';
+    mediaLabel = '生音频';
+  }
+  if (preferenceKey) {
+    var preferences;
+    try {
+      var response = await fetch('/kv');
+      if (!response.ok) throw new Error();
+      preferences = await response.json();
+      if (!isObject(preferences)
+        || (Object.prototype.hasOwnProperty.call(preferences, preferenceKey)
+          && typeof preferences[preferenceKey] !== 'boolean')) throw new Error();
+    } catch (_error) {
+      var settingsError = new Error('Maker ' + mediaLabel + '设置读取失败，本次未发送请求，请重新打开插件设置检查');
+      settingsError.execution_state = 'not_executed';
+      throw settingsError;
+    }
+    if (preferences[preferenceKey] === false) {
+      var disabledError = new Error('maker ' + mediaLabel + '被禁用，请使用其他' + mediaLabel + '工具');
+      disabledError.execution_state = 'not_executed';
+      throw disabledError;
+    }
+  }
   var progressToken = longRunning ? 'cindy-maker-' + nextProgressToken++ : null;
   return nodeRequest({
     method: 'tools/call',
@@ -264,7 +306,15 @@ function publicMakerErrorMessage(result) {
 function sanitizeMakerFailure(result) {
   if (!makerResultIsFailure(result)) return result;
   var message = publicMakerErrorMessage(result);
-  return makerErrorResult(message, makerFailureDetails(message));
+  var executionDetails = makerExecutionDetails(result);
+  if (executionDetails.execution_state === 'unknown') {
+    message = 'TapTap Maker 操作执行结果不确定。请先核对 Maker 端实际状态、产物和用量，再决定是否重试；不要自动或盲目重试。\n'
+      + message;
+  }
+  return makerErrorResult(
+    message,
+    Object.assign({}, makerFailureDetails(message), executionDetails),
+  );
 }
 
 function makerFailureDetails(message) {
@@ -277,12 +327,180 @@ function makerFailureDetails(message) {
   return details;
 }
 
+function makerDiagnosticPayload(text, label) {
+  var marker = label + ':\n';
+  var markerIndex = text.indexOf('\n' + marker);
+  var valueStart = markerIndex >= 0
+    ? markerIndex + marker.length + 1
+    : text.startsWith(marker) ? marker.length : -1;
+  if (valueStart < 0) return null;
+  var section = text.slice(valueStart);
+  var sectionEnd = section.indexOf('\n\n');
+  var candidate = (sectionEnd >= 0 ? section.slice(0, sectionEnd) : section).trim();
+  if (!candidate.startsWith('{') || !candidate.endsWith('}')) return null;
+  try {
+    var parsed = JSON.parse(candidate);
+    return isObject(parsed) ? parsed : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function makerExecutionDetailsFromValue(value) {
+  if (!isObject(value)) return null;
+  var state = value.execution_state !== undefined
+    ? value.execution_state
+    : value.executionState;
+  if (state === 'not_executed' || state === 'executed' || state === 'unknown') {
+    var automaticRetry = typeof value.automatic_retry === 'boolean'
+      ? value.automatic_retry
+      : value.automaticRetry;
+    return {
+      execution_state: state,
+      ...(typeof automaticRetry === 'boolean' ? { automatic_retry: automaticRetry } : {}),
+    };
+  }
+  return makerExecutionDetailsFromValue(value.structuredContent)
+    || makerExecutionDetailsFromValue(value.remote_structured_content);
+}
+
+function makerExecutionDetails(result) {
+  var payloads = makerResultPayloads(result);
+  for (var i = 0; i < payloads.length; i += 1) {
+    var payloadDetails = makerExecutionDetailsFromValue(payloads[i]);
+    if (payloadDetails) return payloadDetails;
+  }
+  var content = isObject(result) && Array.isArray(result.content) ? result.content : [];
+  for (var contentIndex = 0; contentIndex < content.length; contentIndex += 1) {
+    if (
+      !isObject(content[contentIndex])
+      || content[contentIndex].type !== 'text'
+      || typeof content[contentIndex].text !== 'string'
+    ) continue;
+    var diagnosticLabels = ['remote_result', 'error_details'];
+    for (var labelIndex = 0; labelIndex < diagnosticLabels.length; labelIndex += 1) {
+      var diagnosticPayload = makerDiagnosticPayload(
+        content[contentIndex].text,
+        diagnosticLabels[labelIndex],
+      );
+      var diagnosticDetails = makerExecutionDetailsFromValue(diagnosticPayload);
+      if (diagnosticDetails) return diagnosticDetails;
+    }
+    var inlineStateMatch = /\bexecution_state\s*=\s*(not_executed|executed|unknown)\b/i
+      .exec(content[contentIndex].text);
+    if (inlineStateMatch) {
+      return {
+        execution_state: inlineStateMatch[1].toLowerCase(),
+        ...(/\bautomatic retry is disabled\b/i.test(content[contentIndex].text)
+          ? { automatic_retry: false }
+          : {}),
+      };
+    }
+  }
+  return {};
+}
+
+function makerAllowsIdentityRecovery(result) {
+  var details = makerExecutionDetails(result);
+  return details.execution_state === undefined || details.execution_state === 'not_executed';
+}
+
+function normalizeMakerAuthGuidance(value) {
+  return String(value || '')
+    .replace(
+      'Maker PAT 和 TapTap auth 缺失。请运行 `taptap-maker login` 刷新登录授权。',
+      'Maker PAT 和 TapTap auth 缺失。请调用 `maker_login` 重新连接账号，或在 TapTap Maker 插件设置页配置 PAT。',
+    )
+    .replace(
+      'TapTap auth 缺失。请运行 `taptap-maker login` 刷新登录授权。',
+      'TapTap auth 缺失。请在 TapTap Maker 插件设置页重新保存 PAT，或调用 `maker_login` 重新连接账号。',
+    )
+    .replace(
+      'Maker PAT 缺失。请运行 `taptap-maker login` 刷新登录授权。',
+      'Maker PAT 缺失。请调用 `maker_login` 重新连接账号，或在 TapTap Maker 插件设置页配置 PAT。',
+    );
+}
+
+function normalizeMakerPluginGuidance(value) {
+  var reportGuidanceAdded = false;
+  var readyDiagnosticsGuidanceAdded = false;
+  var unreadyDiagnosticsGuidanceAdded = false;
+  var localDiagnosticsReady = false;
+  return normalizeMakerAuthGuidance(value)
+    .replace(
+      /Maker initialization next_step: execute `taptap-maker init(?: --skip-mcp-install)?`(?: through the bundled plugin CLI)?\./g,
+      'Maker initialization next_step: call `maker_apps`, then `maker_init` through the Cindy plugin.',
+    )
+    .replace(
+      /当前目录尚未绑定 Maker 项目。请运行 `taptap-maker init`。/g,
+      '当前目录尚未绑定 Maker 项目。请先调用 `maker_apps` 选择应用，再调用 `maker_init` 初始化当前目录。',
+    )
+    .replace(
+      /如果缺少 Maker PAT，CLI 会在 init 流程内自动打开登录授权页面并完成本地保存。/g,
+      '如果缺少 Maker PAT，请调用 `maker_login`，或在 TapTap Maker 插件设置页配置 PAT。',
+    )
+    .replace(
+      /本地 Maker 工作流请参考 taptap-maker-local workflow guide document；CLI 负责初始化\/PAT\/app\/clone，MCP 只保留状态和同步构建。/g,
+      '本地 Maker 工作流请参考 taptap-maker-local workflow guide document；Cindy 插件的 `maker_login`、`maker_apps` 和 `maker_init` 负责账号与项目初始化。',
+    )
+    .replace(
+      /Maker PAT not found\. Run `taptap-maker login` to complete Maker CLI login,\s*or provide MAKER_PAT\/PAT only for CI\/emergency fallback\./g,
+      'Maker PAT not found. Call `maker_login` to reconnect the account, or configure PAT in TapTap Maker plugin settings.',
+    )
+    .replace(
+      /Maker CLI login timed out\. Run `taptap-maker login` and try again\./g,
+      'Maker account connection timed out. Call `maker_login` and try again.',
+    )
+    .split(/\r?\n/)
+    .map(function normalizeMakerGuidanceLine(line) {
+      if (line === 'Python environment' || line === 'Lua LSP environment') {
+        localDiagnosticsReady = false;
+      } else if (/^\s*-\s*ready:\s*yes\s*$/i.test(line)) {
+        localDiagnosticsReady = true;
+      }
+      if (/\bmcp report\b|active client(?:'s)? exact Maker command|unversioned npm package/i.test(line)) {
+        if (reportGuidanceAdded) return '';
+        reportGuidanceAdded = true;
+        return '- 经用户同意后，请通过 Cindy 的反馈渠道提交已脱敏的问题信息；不要运行独立 Maker CLI。';
+      }
+      if (
+        /\btaptap-maker (?:python|lua-lsp) (?:setup|path|doctor)\b/i.test(line)
+        || /\bmaker-lua-lsp\s+install\b/i.test(line)
+      ) {
+        if (!/^\s*-\s*next_action:/i.test(line)) return '';
+        if (localDiagnosticsReady) {
+          if (readyDiagnosticsGuidanceAdded) return '';
+          readyDiagnosticsGuidanceAdded = true;
+          return '- 本地诊断环境已就绪；Cindy 插件暂不提供 Python 或 Lua LSP 自动升级入口，不影响远端构建。';
+        }
+        if (unreadyDiagnosticsGuidanceAdded) return '';
+        unreadyDiagnosticsGuidanceAdded = true;
+        return '- 本地诊断环境未就绪；Cindy 插件暂不提供 Python 或 Lua LSP 自动安装入口，不影响远端构建。';
+      }
+      var normalized = line
+        .replace(/`?maker_status_lite`?/g, '`maker_status`')
+        .replace(/`?maker_build_current_directory`?/g, '`maker_build`')
+        .replace(/`?taptap-maker login`?/g, '`maker_login`')
+        .replace(/`?taptap-maker apps(?:\s+--json)?`?/g, '`maker_apps`')
+        .replace(/`?taptap-maker dev-kit update`?/g, '`maker_init`')
+        .replace(/`?taptap-maker doctor`?/g, '`maker_doctor`')
+        .replace(/`?taptap-maker init(?:\s+--skip-mcp-install)?`?/g, '`maker_init`')
+        .replace(/Maker CLI login/g, 'Maker account connection');
+      return normalized;
+    })
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function sanitizeMakerStatus(result) {
   if (!isObject(result) || !Array.isArray(result.content)) return result;
   return Object.assign({}, result, {
     content: result.content.map(function sanitizeStatusItem(item) {
       if (!isObject(item) || item.type !== 'text' || typeof item.text !== 'string') return item;
-      return Object.assign({}, item, { text: redactLocalPaths(item.text) });
+      return Object.assign({}, item, {
+        text: normalizeMakerPluginGuidance(redactLocalPaths(item.text)),
+      });
     }),
     ...(result.structuredContent !== undefined
       ? { structuredContent: redactLocalPathsInValue(result.structuredContent) }
@@ -340,13 +558,28 @@ async function initializeMakerIdentity(workdir) {
 
 async function callMakerToolWithIdentityRecovery(name, args, workdir) {
   var firstResult = await callMakerTool(name, args, true);
-  if (name === 'generate_test_qrcode' || !makerRequestsIdentityRecovery(firstResult)) {
+  if (
+    name === 'generate_test_qrcode'
+    || !makerAllowsIdentityRecovery(firstResult)
+    || !makerRequestsIdentityRecovery(firstResult)
+  ) {
     return sanitizeMakerFailure(firstResult);
   }
   var initialized = await initializeMakerIdentity(workdir);
   if (makerResultIsFailure(initialized)) {
     var initializationMessage = publicMakerErrorMessage(initialized);
-    var initializationDetails = makerFailureDetails(initializationMessage);
+    var initializationDetails = Object.assign(
+      {},
+      makerFailureDetails(initializationMessage),
+      makerExecutionDetails(initialized),
+    );
+    if (initializationDetails.execution_state === 'unknown') {
+      return makerErrorResult(
+        'TapTap Maker 自动初始化 App 身份的执行结果不确定。请先核对 Maker 端实际状态和上传结果，不要自动或盲目重试。\n'
+          + initializationMessage,
+        Object.assign({ step: 'generate_test_qrcode' }, initializationDetails),
+      );
+    }
     if (initializationDetails.reason === 'INSUFFICIENT_BALANCE') {
       return makerErrorResult(initializationMessage, initializationDetails);
     }
@@ -363,9 +596,16 @@ async function callMakerToolWithIdentityRecovery(name, args, workdir) {
   }
   var retried = await callMakerTool(name, args, true);
   if (makerRequestsIdentityRecovery(retried)) {
+    var retryDetails = makerExecutionDetails(retried);
+    var retryMessage = retryDetails.execution_state === 'unknown'
+      ? 'TapTap Maker 已完成一次身份初始化，但原工具调用的执行结果不确定。请先核对 Maker 端实际状态、产物和用量，再决定是否重试；不要自动或盲目重试。'
+      : 'TapTap Maker 已完成一次身份初始化，但项目仍缺少可用的 App 身份，已停止自动重试。';
     return makerErrorResult(
-      'TapTap Maker 已完成一次身份初始化，但项目仍缺少可用的 App 身份，已停止自动重试。',
-      { step: 'retry_after_identity_initialization' },
+      retryMessage,
+      Object.assign(
+        { step: 'retry_after_identity_initialization' },
+        retryDetails,
+      ),
     );
   }
   return sanitizeMakerFailure(retried);
@@ -454,11 +694,12 @@ async function handleTool(message) {
   }
   if (message.tool === 'maker_list_tools') {
     var listContext = requireLocalContext(message);
-    return { tools: await listMakerTools(listContext.workdir) };
+    var listedTools = await listMakerTools(listContext.workdir);
+    return Array.isArray(listedTools) ? { tools: listedTools } : listedTools;
   }
   if (message.tool === 'maker_call_tool') {
     var callContext = requireLocalContext(message);
-    // Maker 0.0.28 没有纯只读的动态工具契约：query_video_task 会落盘完成的视频，
+    // Maker 动态工具没有纯只读契约：query_video_task 会落盘完成的视频，
     // get_debug_feedbacks 即使不标记已处理也会下载附件，因此统一按可能写工作区处理。
     requireWritableContext(callContext);
     if (typeof args.name !== 'string' || !args.name || (args.args !== undefined && !isObject(args.args))) {
@@ -468,8 +709,11 @@ async function handleTool(message) {
       throw new Error('固定 Maker 工具必须使用 maker_status 或 maker_build');
     }
     var available = await listMakerTools(callContext.workdir);
+    if (!Array.isArray(available)) return available;
     if (!available.some(function sameTool(tool) { return tool.name === args.name; })) {
-      throw new Error('Maker 动态工具不存在或当前不可用：' + args.name);
+      return makerErrorResult('Maker 动态工具不存在或当前不可用：' + args.name, {
+        execution_state: 'not_executed', automatic_retry: false,
+      });
     }
     var toolArgs = Object.assign({}, args.args || {}, { target_dir: callContext.workdir });
     return callMakerToolWithIdentityRecovery(
@@ -513,6 +757,14 @@ async function sendToolResult(message) {
       callId: message.callId,
       ok: false,
       message: redactSensitiveText(errorMessage(error), true).slice(0, 2000),
+      ...(error && error.execution_state ? { execution_state: error.execution_state } : {}),
+      ...(error && error.execution_state ? {
+        structuredContent: {
+          success: false,
+          message: redactSensitiveText(errorMessage(error), true).slice(0, 2000),
+          execution_state: error.execution_state,
+        },
+      } : {}),
     });
   }
 }

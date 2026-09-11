@@ -24,8 +24,14 @@
 - **正在用 Cindy？** 不需要本仓库——在 Cindy 客户端打开「插件」页，下方已
   全量开放的插件都可以一键安装（标注「定向灰度」的仍在分批放量，暂未对所有
   人开放）。
-- **想给 Cindy 写插件？** 本仓库接受外部贡献：PR 合入 `main` 后自动发布上架，
-  通常几分钟内出现在插件市场。从[提交你的插件](#提交你的插件)开始。
+- **想给 Cindy 写插件？** 本仓库接受外部贡献：PR 合入 `main` 后，包会自动提交到
+  CN / Global 两区审核队列；只有对应区域审核通过后才会在客户端可见。从
+  [提交你的插件](#提交你的插件)开始。
+
+已安装的市场插件会沿安装时记录的来源静默更新。因此，合入后的版本升级可以在
+用户无需再次点击、也不会出现能力确认弹窗的情况下到达已安装用户。请把能力扩张
+和运行时行为变更视为立即生效的线上变更：包内 `ghost.json` 只声明实际必需的最小能力，
+遵守 Host 授权及凭证边界；市场摘要不是另一套安装权限门禁。
 
 ## 插件列表
 
@@ -36,7 +42,7 @@
 | <img src="./cindy-gitlab/assets/icon.png" width="22" alt=""> | GitLab | [`cindy-gitlab`](./cindy-gitlab) | GitLab（gitlab.com 及自建实例）issue / MR / 仓库操作 |
 | <img src="./cindy-mermaid/assets/icon.jpg" width="22" alt=""> | Mermaid | [`cindy-mermaid`](./cindy-mermaid) | Mermaid 图表源码规范化与常见语法修复 |
 | <img src="./cindy-notion/assets/icon.png" width="22" alt=""> | Notion | [`cindy-notion`](./cindy-notion) | Notion 页面、数据库与知识库读写 |
-| <img src="./cindy-web-search/assets/icon.png" width="22" alt=""> | Web Search | [`cindy-web-search`](./cindy-web-search) | 公网搜索（Brave / Tavily / Search1API，用户自备 API key） |
+| <img src="./cindy-web-search/assets/icon.png" width="22" alt=""> | Web Search | [`cindy-web-search`](./cindy-web-search) | 公网搜索（默认 Cindy AI，可选用户自备 Brave / Tavily / Search1API Key） |
 | <img src="./world-bank-open-data/assets/icon.png" width="22" alt=""> | 世界银行公开数据 | [`world-bank-open-data`](./world-bank-open-data) | 无需 API Key，查询全球国家、经济、社会与发展指标；定向灰度 |
 | <img src="./google-gmail/assets/icon.png" width="22" alt=""> | Gmail | [`google-gmail`](./google-gmail) | 搜索、阅读、整理 Gmail 邮件，生成草稿或发送邮件；授权由宿主托管 |
 | <img src="./google-drive/assets/icon.png" width="22" alt=""> | Google Drive | [`google-drive`](./google-drive) | 搜索、读取、下载、上传、移动和删除云端文件 |
@@ -45,7 +51,9 @@
 | <img src="./163-mail/assets/icon.png" width="22" alt=""> | 163 邮箱 | [`163-mail`](./163-mail) | 通过 IMAP/SMTP 搜索、阅读、整理、撰写和发送 163 邮箱邮件 |
 | <img src="./icloud-mail/assets/icon.png" width="22" alt=""> | iCloud Mail | [`icloud-mail`](./icloud-mail) | Cindy 安全保存 App 专用密码，按需通过 IMAP/SMTP 管理邮件 |
 | <img src="./qq-mail/assets/icon.png" width="22" alt=""> | QQ 邮箱 | [`qq-mail`](./qq-mail) | Cindy 安全保存授权码，按需通过 IMAP/SMTP 搜索、阅读、整理和发送 |
+| <img src="./yahoo-mail/assets/icon.png" width="22" alt=""> | Yahoo Mail | [`yahoo-mail`](./yahoo-mail) | Cindy 安全保存应用密码，按需通过 IMAP/SMTP 管理和发送邮件 |
 | <img src="./taptap-maker/assets/icon.png" width="22" alt=""> | TapTap Maker | [`taptap-maker`](./taptap-maker) | 账号连接、项目同步、构建与官方动态工具 |
+| <img src="./ios-simulator/assets/icon.png" width="22" alt=""> | iOS 模拟器 | [`ios-simulator`](./ios-simulator) | Cindy 主机托管的内嵌工作流；主机授权回退时将原始任务和精确设备交给指定外部工作流；定向灰度 |
 | <img src="./x-manager/assets/icon.png" width="22" alt=""> | X Manager | [`x-manager`](./x-manager) | 在 X（Twitter）上搜舆情、发帖——xAI x_search，Grok 订阅 / API key 双通道降级，发帖走 X 官方 API v2；目前定向灰度中 |
 
 想要的插件不在这里？[提议一个](#提交你的插件)——或者自己写一个提交上来。
@@ -61,28 +69,34 @@
    [新插件提案 issue](https://github.com/makecindy/cindy-official-plugins/issues/new?template=new_plugin_proposal.yml)，
    说明场景、边界和所需能力（网络域名、凭证类型、是否需要 Node Runtime）。
    **拿到维护者确认后再动手写代码**——避免做出重叠或不会被接受的东西。
-3. **开发**——在 Cindy 对话里说「帮我做一个插件」即可拿到完整编写手册
-   （`ghost_forge_guide`：`ghost.json` 全字段、卡槽、`cindy.send` 管子 API、
-   打包流程）。用 `ghost_forge_scaffold` 生成骨架或参考本仓任一插件；dev
-   环境下导入插件目录或 `.cindy` 包验证。
+3. **开发**——在任意 coding Agent 或开发环境中按照
+   [工具无关的快速路径](#工具无关的快速路径)操作。文件格式、运行时消息、校验命令和
+   打包格式都由本仓库说明，不要求 Cindy 专用的插件制作工具。
 4. **提交 PR**——标题 `feat(<目录名>): …`；bump `ghost.json.version`；补
    `provisioning.json` 条目；四语言 locale（`zh-CN` / `en` / `ja` / `ko`）
    齐全；每个 commit 带签名（`git commit -s`，[DCO](./DCO)）。细节见
    [`CONTRIBUTING.zh-CN.md`](./CONTRIBUTING.zh-CN.md)。
-5. **审查**——CI 自动跑本地化 / provisioning 门禁与打包 dry-run；自动 review
-   按 [`.greptile/rules.md`](./.greptile/rules.md) 的完整规则执行；维护者按
-   同一套[审查标准](#审查标准)人工审查。请求 review 前先过一遍下方自查清单。
-6. **上架**——合入 `main` 后 CN / Global 双区发布 Workflow 自动发布，无任何
-   人工上架环节，通常几分钟内出现在插件市场。
+5. **审查**——CI 在本仓校验 manifest、Server / Desktop 交付限制、本地化 /
+   provisioning 门禁，并对真实包做 dry-run；
+   自动 review 按
+   [`.greptile/rules.md`](./.greptile/rules.md) 的完整规则执行；维护者按同一套
+   [审查标准](#审查标准)人工审查。请求 review 前先过一遍下方自查清单。
+6. **提交并上架**——合入 `main` 后 CN / Global Workflow 自动通过 Plugin Platform
+   提交真实包。两区分别审核；只有审核通过的 release 才会下发给兼容客户端，拒绝
+   不会影响此前已通过的版本。审核通过后，绑定该市场来源的已安装客户端会静默更新。
 
 ## 审查标准
 
 每个官方插件都会被真实用户安装，安全与体验风险由用户承担，因此审查从严。
 四条硬原则：
 
-1. **默认纯沙箱、能力显式声明**：普通插件运行在 Cindy 的隔离沙箱中，只能使用
-   `ghost.json` 声明的网络白名单与主机通道。确需 Node Runtime 的官方插件必须
-   显式声明 `node` slot、固定入口和最小子进程边界。
+1. **默认纯沙箱，授权跟随执行者**：普通插件运行在 Cindy 的隔离沙箱中。插件工具
+   是否执行由当前 `ghost_call` 的既有 Agent 授权决定；普通 HTTPS 与 workdir 文件操作
+   使用 Host 下发且严格在途的 `callId`，随包代码与 CLI 继续走已有 Node 工作进程。
+   不要仅为了预登记具体命令、域名或路径新增 Slot 或 Manifest 字段。插件若要从
+   Panel、订阅、scheduler 或常驻进程中自主使用 Host
+   能力，才在 `ghost.json` 声明对应直接字段。自主 Node Runtime 仍必须显式声明顶层
+   `node` 字段、固定入口和最小子进程边界。
 2. **密钥归属明确**：普通 API token 通过主机的 `/secrets` 只写通道保存；Node
    插件需明文凭证时，用 `node.secretBindings` 将其限制到指定 Worker 方法并由
    宿主临时注入，不经过浏览器 `main.js`、Agent 参数或日志。若官方第三方
@@ -96,8 +110,9 @@
 
 ### 请求 review 前的自查清单
 
-- [ ] `ghost.json` 只声明实际用到的网络域名与主机通道；非必要不声明 `node` slot
-- [ ] Node 插件：显式 `node` slot、固定入口、最小子进程边界；`node/worker.cjs`
+- [ ] 已分清执行者：插件工具调用由现有 Agent 授权，HTTPS／workdir 操作用当前
+      `callId`；CLI 走已有 Node 工作进程，`ghost.json` 不预登记具体命令
+- [ ] Node 插件：显式 `node` 字段、固定入口、最小子进程边界；`node/worker.cjs`
       是随 `src/` 重建的 esbuild 产物
 - [ ] 任何地方无明文凭证：token 走 `/secrets` 只写通道或 `node.secretBindings`；
       不经过 `main.js`、Agent 参数、日志、KV、页面状态
@@ -106,6 +121,9 @@
 - [ ] 每个 tool 的 `description` 与实际行为一致——能力、限制、返回值、副作用
 - [ ] 面向用户的报错可行动；无裸状态码、无英文堆栈
 - [ ] 四语言 locale 齐全；`node --test .tests/localization.test.mjs` 通过
+- [ ] 每个改动插件都已在运行正式稳定版 Cindy 的实际设备上安装真实 `.cindy` 包并
+      验证核心功能，且已勾选 PR 验证项；插件声明 `minCindyVersion` 时，验证所用
+      Cindy 版本不低于该最低版本
 - [ ] `ghost.json.version` 已 bump；`provisioning.json` 有对应条目且 PR 描述里
       写明 audience 决策
 - [ ] diff 中无凭证、真实用户数据、`node_modules` 或无关生成文件；fixture 用
@@ -144,9 +162,10 @@ cindy-art/
 [`docs/localization.zh-CN.md`](./docs/localization.zh-CN.md)。共享资源覆盖清单层；
 自绘设置页正独立迁移到同一套宿主语言契约，运行时报错文案目前仍以中文单语为主。
 
-## 自动发布
+## 自动提交与审核
 
-一句话：**合入 `main` 即自动双区发布，没有任何人工上架环节。**
+一句话：**合入 `main` 会自动提交到双区；对用户可见仍需每个区域的 Plugin Platform
+分别审核通过。**
 
 共有两个发布 Workflow，都只允许从 `main` 发布：
 
@@ -155,33 +174,169 @@ cindy-art/
 - [`publish-cindy-plugins-global.yml`](./.github/workflows/publish-cindy-plugins-global.yml) ——
   `Publish Cindy Plugins (Global)`
 
-两者均已启用，行为完全一致：
+两者均已启用，使用相同的提交链路：
 
-- `main` 的普通 push 只发布本次发生变化的插件目录；没有触及任何插件目录的 push 不会
-  发布任何东西。
-- Actions 页面手动运行会全量发布当前全部插件，供仓库迁移后首次建档或显式重发使用。
-- 各自通过 GitHub Actions OIDC（audience `cindy-plugin`）发布到由仓库 Secret 提供的
-  端点。两次运行独立打包、独立执行、独立汇报，一边失败不影响另一边的 Workflow 状态。
-  仓库不提供 Dev 发布 Workflow。
+- `main` 的普通 push 只提交本次发生变化的插件目录；没有触及插件目录的 push 不提交。
+- Actions 页面手动运行会全量提交当前全部插件，供仓库迁移后首次建档或显式重提使用。
+- 各自通过 GitHub Actions OIDC（audience `cindy-plugin`）访问受保护的 Plugin Platform
+  端点。Platform 创建待审核 release 并通知 reviewer，不允许 Workflow 绕过审核直连
+  Plugin Server。
+- 两区独立打包、提交、审核和汇报；一边失败或拒绝不影响另一边。仓库不提供 Dev 发布
+  Workflow。
 
-由于两者由同一次 push 触发，一次改动插件的合并会产生两个 Release —— 每个区域一个。
+审核通过后，兼容客户端会收到该 release；低于 `minCindyVersion` 的客户端会继续收到
+已有的最新兼容旧 release（如果存在）。Desktop 信任该 Server 投影，不再追加版本确认。
 
-修改插件内容时必须同步更新 `ghost.json.version`。同一版本内容不同会被服务端以
-`RELEASE_VERSION_CONFLICT` 拒绝，不会覆盖既有 Release。
+修改插件内容时必须同步更新 `ghost.json.version`。新的 `major.minor.patch` SemVer 必须
+大于 `main` 上的当前版本，否则 CI 会在提交 Server 前阻止合并。
 
 ## 本地开发
 
-插件编写的完整契约（`ghost.json` 全字段、卡槽、`cindy.send` 管子 API、打包流程）以 Cindy 客户端内置的 `ghost_forge_guide` 工具返回的手册为准 —— 在 Cindy 对话里说"帮我做一个插件"即可现拿现读。
+插件编写契约由本仓库定义：以下说明与 [`CONTRIBUTING.zh-CN.md`](./CONTRIBUTING.zh-CN.md)、
+`.tests/contracts/` 中固定版本的 Cindy Manifest 校验器，以及仓库打包门禁共同组成
+正本。无论使用哪一种 Agent 或 harness，写出的文件都遵循同一契约。Cindy Forge 工具
+只是可选捷径，不属于插件格式，也不是开发前置条件。
 
-常用流程：
+维护已有插件、v2/v3 字段映射、HTTPS、文件和 Node/CLI 的具体调用见
+[插件编写与迁移参考](./docs/plugin-authoring.zh-CN.md)。Agent 可依据这些事实和
+现有代码自行完成必要适配，作者不需要另外手工执行迁移清单。
 
-1. 用客户端的 `ghost_forge_scaffold` 生成骨架，或直接参考本仓任一插件的写法。
-2. dev 环境下直接导入插件目录或 `.cindy` 包验证。
-3. 完成后用 `ghost_forge_pack` 打包成 `.cindy` 装入验证。
+新插件使用 `schemaVersion: 3`，并通过 `tools`、`network`、`node`、`notify: true`
+等顶层字段直接声明能力；v3 不得再有 `slots`。每个 v3 插件包都必须独立填写
+`minCindyVersion`：它应是同时支持这个具体插件所依赖的全部 Host 能力和 Manifest 字段的
+第一个 Cindy 正式稳定版本。Manifest v3 本身不设置仓库级 Cindy 版本下限。现有 v2 清单
+保持原样，直到该插件的实际打包内容发生变化；改动它的 PR
+必须同时迁移到 v3。本仓不会只为 schema 变化批量迁移、批量发布现有插件。
+
+直接字段表达插件贡献项和**自主** Host 能力，不是具体命令、域名或路径的预登记清单。
+插件工具是否执行由当前 `ghost_call` 的既有 Agent 授权决定；普通 HTTPS 与 workdir
+文件操作把 Host 下发的 `callId` 传给 `cindy.fetch` 或 `cindy.fs`。随包代码与 CLI
+继续走已有 Node 工作进程。Host 托管凭证以及脱离该在途调用的使用仍须对应的显式声明。
+
+### 工具无关的快速路径
+
+把下面这段发给任意能够编辑文件、运行命令的 coding Agent 或 harness：
+
+```text
+只按照当前仓库中的插件编写契约，帮我制作一个用于[具体用途]的 Cindy 插件。先读
+AGENTS.md 和 docs/plugin-authoring.zh-CN.md，根据任务自行判断所需声明与运行时接口，
+只确认仓库事实无法确定的功能取舍或验证缺口。新建 Manifest v3 插件目录，
+不要复制现有 v2 ghost.json。使用仓库校验器检查 Manifest，把目录内容打成 .cindy ZIP
+包并返回产物路径。除非我明确要求，否则不要安装插件。
+```
+
+先创建最小目录：
+
+```text
+my-plugin/
+├── ghost.json
+├── main.js
+└── assets/
+    └── icon.png
+```
+
+**不要复制本仓现有插件的 `ghost.json`**：仓库会刻意保留尚未发生内容改动的旧 v2
+清单。现有源码只能用于参考实现方式。
+
+`ghost.json` 从下面这份最小可运行 Manifest v3 开始：
+
+下面的 `1.2.3` 只是示例；请替换成实际支持当前插件的第一个 Cindy 正式稳定版本。
+
+```json
+{
+  "schemaVersion": 3,
+  "minCindyVersion": "1.2.3",
+  "id": "my-plugin",
+  "name": "My Plugin",
+  "description": "给用户看的单句说明。",
+  "whenToUse": "当用户需要这个插件提供的能力时使用。",
+  "version": "1.0.0",
+  "kind": "chip",
+  "entry": "main.js",
+  "icon": "assets/icon.png",
+  "tools": [
+    {
+      "name": "hello",
+      "description": "返回一句问候，用来确认插件已经正常工作。",
+      "parameters": { "type": "object", "properties": {} }
+    }
+  ]
+}
+```
+
+在 `assets/icon.png` 放入真实 PNG；如果暂时没有图标，就同时删除 Manifest 的 `icon`
+字段和未使用的 `assets/` 项。禁止打包 Manifest 已声明、包内却不存在的文件。
+
+在 `main.js` 中按 Host 消息契约实现已经声明的工具：
+
+```js
+cindy.onHostMessage(async function (message) {
+  if (message.type !== 'tool-call' || message.tool !== 'hello') return;
+
+  await cindy.send({
+    type: 'tool-result',
+    callId: message.callId,
+    ok: true,
+    result: { message: '插件已经正常工作。' }
+  });
+});
+```
+
+`callId` 只属于当前这一次在途工具调用；插件必须使用相同 `callId` 返回且只返回一个
+`tool-result`。普通 HTTPS 与 workdir 文件操作同样把 Host 下发的 `callId` 传给
+`cindy.fetch` / `cindy.fs`，沿用 Cindy 现有运行时授权，不需要在 Manifest 中预登记
+具体命令、域名或路径。只有插件贡献项或脱离该调用的自主 Host 使用才声明对应顶层能力。
+
+在仓库根目录校验 Manifest：
+
+```bash
+node scripts/validate-plugin-manifest.mjs ./my-plugin
+```
+
+`.cindy` 是普通 ZIP：压缩包根目录必须直接包含 `ghost.json`、`main.js` 和声明的资源，
+不能在外层再套一层 `my-plugin/`。审查并提交插件文件后，用仓库打包脚本从 Git 已跟踪的
+`HEAD` 内容生成确切产物：
+
+```bash
+.github/scripts/package-plugin.sh my-plugin /tmp/my-plugin-1.0.0.cindy
+unzip -Z1 /tmp/my-plugin-1.0.0.cindy
+```
+
+该脚本使用 `git archive` 归档插件目录、补入固定的仓库法律文件并校验产物，刻意不包含
+插件目录中未提交和未跟踪的文件。
+不要递归压缩插件工作目录，否则本地 `.env`、`.npmrc`、私钥或其他凭证可能进入包中。
+若 harness 要打包尚未提交的工作区，必须使用经过审查的显式文件清单。安装或分享前，
+检查归档列表只含预期文件、没有外层插件目录，也没有凭证。
+
+用户可以从 Cindy 的本地插件入口导入这个包。如果当前 harness 恰好提供 Cindy Forge
+工具，`ghost_forge_scaffold` 可以生成同样的 v3 基线，`ghost_forge_pack` 可以校验并
+打包，`ghost_forge_install` 可以在用户明确要求后安装。它们只是可选加速器；源码与
+`.cindy` 格式完全相同。
+
+提交到官方仓库前，还必须补充 `provisioning.json` 条目，并在 Manifest 中声明恰好
+`zh-CN`、`en`、`ja`、`ko` 四份 locale 文件，完整覆盖插件文案和全部工具描述；随后
+按 [`CONTRIBUTING.zh-CN.md`](./CONTRIBUTING.zh-CN.md) 自查，并在符合最低版本要求的
+Cindy 正式稳定版实机上安装真实 `.cindy` 包完成验证。
 
 `taptap-maker/vendor/taptap-maker/` 固定随插件分发官方
-`@taptap/maker@0.0.28`。升级时应整体替换 npm 包发布内容并同步更新插件版本，
-不要单独修改生成后的 `dist/maker.js`。
+`@taptap/maker@0.0.33`。升级时应整体替换 npm 包发布内容并同步更新插件版本，
+在官方包包含等价修复前，保留以下经审查的 Cindy 兼容补丁：
+
+- `normalizeRemoteProxyExecutionState` 接受 `executed`，保留确定已执行状态
+  （最初补丁：`ff54f59`）。
+- BLACKLISTED 的 `tools/call` 拦截返回 `structuredContent`，包含
+  `success: false`、原提示和 `execution_state: "not_executed"`，确保 Cindy
+  错误清洗后仍保留执行态。
+- BLACKLISTED 的 `tools/list` 保留受限工具列表，并通过 `_meta.maker_access`
+  携带原始错误码和提示。Cindy 在发送调用前返回账号受限原因和 `not_executed`，
+  不再将其替换为通用的工具不存在提示。
+- `user-skills pull` 在任何写入前拒绝项目及客户端 Skill 根路径中的已有符号链接。
+- `tools/list`、`resources/read`、`tools/call` 按请求检查账号访问状态，
+  不使用启动时的 `accessStatePromise` 缓存；更换 PAT 后无需等待旧 Runtime
+  进程过期。每次上述请求增加一次鉴权检查，但不改变上游访问限制策略。
+
+除以上补丁和保留的 `LICENSE` 外，vendor 文件必须与官方 npm 包一致。
+每次升级都需核对补丁清单和回归测试，不要增加无关的 bundle 手工修改。
 
 ## 社区
 
@@ -205,6 +360,7 @@ Copyright 2026 心动网络股份有限公司 (X.D. Network Inc.)，见 [`NOTICE
 - `qq-mail/THIRD-PARTY-LICENSES.txt` — `node/worker.cjs` 内嵌依赖的完整许可证文本
 - `163-mail/THIRD-PARTY-LICENSES.txt` — 同上，163 邮箱插件的内嵌依赖
 - `icloud-mail/THIRD-PARTY-LICENSES.txt` — 同上，iCloud Mail 插件的内嵌依赖
+- `yahoo-mail/THIRD-PARTY-LICENSES.txt` — 同上，Yahoo Mail 插件的内嵌依赖
 - `taptap-maker/vendor/taptap-maker/LICENSE` — vendored `@taptap/maker`（MIT）
 
 Apache-2.0 不授予商标权。本仓库插件是对所连接服务的非官方集成，第三方名称与标志归其

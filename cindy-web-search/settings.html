@@ -3,9 +3,7 @@
 <head>
 <meta charset="utf-8">
 <!-- Web Search 自定义设置区(意识自绘,cindy-ghost:// 沙箱页):
-     Brave / Tavily / Search1API 三条 key 收单——观感对齐 cindy-mivo 设置页(label + 已保存徽标 +
-     提示行 + 圆角输入框 + 眼睛切换 + 保存/清除),行结构由 data-* 驱动、settings.js
-     统一接线。
+     普通偏好走 /kv(只保存非默认 override),Brave / Tavily / Search1API 三条 key 走 /secrets。
      安全模型:这里只是收单;值经协议 /secrets 一次性交给主机保险库(OS 级加密),
      本页存不下也读不回明文——保存后只有「已保存」状态 + 尾 4 位指纹进占位文案。 -->
 <style>
@@ -16,6 +14,43 @@
     color: var(--text-primary, #1a1a1a);
     font: 13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
   }
+  .preferences {
+    padding: 0 2px 16px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--border-default, #e4e4e0);
+  }
+  .preference-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  }
+  .preference-row + .preference-row { margin-top: 14px; }
+  .preference-copy { min-width: 0; }
+  .preference-title { font-weight: 500; }
+  .hint { margin-top: 3px; color: var(--text-tertiary, #8a8a86); font-size: 12px; }
+  .switch { position: relative; width: 36px; height: 20px; flex: 0 0 auto; }
+  .switch input { position: absolute; opacity: 0; pointer-events: none; }
+  .switch-track {
+    position: absolute; inset: 0; border-radius: 999px; cursor: pointer;
+    background: var(--surface-chip, #d8d8d3);
+    transition: background 120ms ease;
+  }
+  .switch-track::after {
+    content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+    border-radius: 50%; background: var(--surface-elevated, #ffffff);
+    box-shadow: 0 1px 2px rgba(0,0,0,.18); transition: transform 120ms ease;
+  }
+  .switch input:checked + .switch-track { background: var(--accent-cta-bg, #262626); }
+  .switch input:checked + .switch-track::after { transform: translateX(16px); }
+  .switch input:focus-visible + .switch-track {
+    outline: 2px solid var(--focus-ring, #4c8dff); outline-offset: 2px;
+  }
+  .switch input:disabled + .switch-track { cursor: default; opacity: .55; }
+  .provider-select {
+    min-width: 116px; height: 32px; padding: 0 28px 0 10px;
+    border: 1px solid var(--border-default, #e4e4e0); border-radius: 6px;
+    background: var(--surface-elevated, #ffffff); color: var(--text-primary, #1a1a1a);
+    font: inherit;
+  }
+  .provider-select:disabled { cursor: default; opacity: .55; }
   .secret + .secret { margin-top: 16px; }
   /* title 与控制台链接右缩 2px 对齐胶囊输入框的文字视觉边(同 xd-mivo)。 */
   .label-row { display: flex; align-items: center; gap: 8px; padding-left: 2px; }
@@ -74,6 +109,30 @@
 </style>
 </head>
 <body>
+  <section class="preferences">
+    <div class="preference-row">
+      <div class="preference-copy">
+        <div class="preference-title">默认使用 Cindy AI 搜索</div>
+        <p class="hint">也可关闭并使用自己的 Brave / Tavily / Search1API Key。</p>
+      </div>
+      <label class="switch">
+        <input id="cindy-ai-enabled" type="checkbox" checked disabled aria-label="使用 Cindy AI 搜索">
+        <span class="switch-track"></span>
+      </label>
+    </div>
+    <div class="preference-row">
+      <div class="preference-copy">
+        <label class="preference-title" for="byo-default-provider">自备搜索渠道</label>
+        <p class="hint">关闭 Cindy AI 搜索后使用。</p>
+      </div>
+      <select id="byo-default-provider" class="provider-select" disabled>
+        <option value="brave">Brave</option>
+        <option value="tavily">Tavily</option>
+        <option value="search1api">Search1API</option>
+      </select>
+    </div>
+  </section>
+
   <div class="secret" data-key="brave_api_key" data-tail-prefix="BSA…" data-empty-ph="粘贴 BSA 开头的 key">
     <div class="label-row">
       <span class="name">Brave Search API Key</span>
@@ -128,7 +187,7 @@
       <button class="btn save" type="button">保存</button>
       <button class="btn clear" type="button">清除</button>
     </div>
-    <a class="console-link" href="https://dashboard.search1api.com/api-keys">前往控制台获取 API Key ↗</a>
+    <a class="console-link" href="https://dashboard.search1api.com/api-keys">前往控制台获取 ↗</a>
   </div>
 
   <p id="status"></p>

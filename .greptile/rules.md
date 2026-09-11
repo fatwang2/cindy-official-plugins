@@ -2,10 +2,20 @@
 
 > 本文件供自动 review（Greptile 等）与人工 reviewer 共同使用。安全红线类规则以
 > `.greptile/config.json` 的结构化条目为准（带 severity），本文件补充设计标准、
-> 流程纪律与判定口径。合入 `main` 的插件会自动发布给全体用户——审查从严，
-> 宁可误报交人工裁决，不可漏报放行。
+> 流程纪律与判定口径。合入 `main` 后会自动向 CN / Global 的 Plugin Platform
+> 提交真实包，区域审核通过后才对用户可见——审查从严，宁可误报交人工裁决，
+> 不可漏报放行。
 
 ## 设计契约
+
+### 授权跟随执行者
+
+当前 Agent 工具调用内的普通 HTTPS 与 workdir 文件操作，使用 Host 下发且严格在途的
+`callId` 复用 Cindy 既有 Agent 授权；CLI 继续走已有 Node 工作进程，工具是否执行由
+当前 `ghost_call` 的既有 Agent 授权决定。不得仅为了预登记具体命令、域名或路径新增
+Slot 或 Manifest 字段。只有 Panel、订阅、scheduler、常驻进程等脱离当前 Agent 调用的
+自主 Host 能力，才必须在 `ghost.json` 直接声明；自主 Node Runtime 仍须声明顶层
+`node`、固定入口和最小子进程边界。Host 托管凭证也仍须按声明守门。
 
 ### tool description 即契约
 
@@ -60,14 +70,48 @@
 的行为字段）有变更但同目录 `ghost.json` 的 `version` 未 bump 时提醒（仅注释/
 格式改动除外）。服务端对同版本不同内容返回 `RELEASE_VERSION_CONFLICT` 拒绝发布。
 
-### 同版本元信息更新契约
+### 版本必须递增
 
-version 不变时，`ghost.json` 仅允许修改 name/description/author/icon 四个纯展示
-字段，其余字段（whenToUse/entry/launch/slots/tools/agent/node/network/subscribe/
-panel/settingsHtml/command/cindy/preview）或任何包内运行文件变化都必须 bump
-version——这是防止同版本静默改变模型行为或权限的硬门禁。注意：该同版本豁免
-依赖服务端尚未上线的能力；在服务端支持放行之前，任何插件内容变更（含这四个
-展示字段）仍必须 bump version。
+本仓发布流水线按完整包上传。为避免 Server 对同版本不同 SHA 返回
+`RELEASE_VERSION_CONFLICT`，插件目录下任何被打进 `.cindy` 的内容发生变化时都必须
+bump version，包括 name/description/author/icon 等展示字段；新版本必须使用
+`major.minor.patch` SemVer，且严格大于 `main` 上的当前版本。新插件只校验 SemVer 格式，
+不做大小比较。不要尝试在本仓复刻 Server 的元数据特例；CI 对完整包执行统一版本门禁。
+
+### Server 与客户端交付契约
+
+CI 必须在本仓校验全部 `ghost.json`，不得 checkout Cindy 或私有 Server 仓库；同时对
+最终 `.cindy` 包执行 Server 与 Desktop 约束的交集：压缩/解压大小、条目数、
+manifest/icon/locale/Skill/Manual 单文件上限、安全路径、大小写路径冲突、客户端保留
+文件、声明文件存在性、四语言结构和文本长度。尤其是插件与 locale 的 description
+不得超过 300 字符。修改或移除这些门禁属于发布链路敏感变更，按 P1 转人工 review。
+
+官方仓提交的是 Server public release：禁止 `oidc-token` secret；携带 Skill bundle
+的 public 插件仅允许 Server 现有豁免 id（`ios-simulator` / `taptap-maker` /
+`x-manager`）；携带 Manual 的插件必须声明 `minCindyVersion`。不要用 Greptile 对
+manifest schema 的猜测替代 CI 的确定性校验结果。
+
+`.tests/plugin-contract.test.mjs` 同时接受未改动的 legacy v2 与合法 v3；但新插件，
+以及实际打包内容发生变化的现有插件，必须在同一 PR 迁移到 `schemaVersion: 3`、
+按该插件实际依赖填写首个稳定版 `minCindyVersion`、移除 `slots` 并保持直接能力声明等价；
+仓库不设置统一 Cindy 版本下限。
+只改仓库级文档、CI 或其它插件时，不得要求顺手迁移无关的 v2 清单。
+
+### 最低客户端版本
+
+每个改动插件包的 PR Body 都必须勾选生产版 Cindy 验证项，确认真实打包 `.cindy` 已在
+运行正式稳定版 Cindy 的实际设备上安装并验证核心功能；CI 会确定性检查该勾选项。
+`minCindyVersion` 表示这个 release 能被安装和运行的最低 Cindy 版本，插件声明该字段
+时，验证所用 Cindy 版本必须不低于它。降低或删除该字段会扩大支持范围，静态 CI 无法
+证明旧客户端可用，必须转维护者人工 review。未声明字段的旧插件继续按现有兼容语义
+处理，不要求为了补字段而批量修改。
+
+### 发布与审核链路
+
+合入后 Workflow 只能通过 CN / Global 各自的受保护 Plugin Platform endpoint 提交，
+不得绕过 Platform 直接调用 Plugin Server。Platform 负责创建 pending release、通知
+reviewer 并记录批准/拒绝；只有批准的 release 才能被兼容客户端发现。两个区域独立，
+一边失败或拒绝不得阻塞或替换另一边已有的批准版本。
 
 ## 新插件准入
 
@@ -85,12 +129,15 @@ PR 新增插件目录（出现新的 `ghost.json`）时，必须通读仓内现�
   协议的不同服务商（163/icloud/qq/yahoo 邮箱）不算重复。
 
 此项为 review 提示，不直接判 fail——重叠是否合理由人工 reviewer 拍板，但重叠
-证据必须完整摆出。
+证据必须完整摆出。新增插件本身属于产品准入决策，即使代码无问题也不得自动 approve，
+必须由维护者确认提案、定位与 audience。
 
 ### 新插件必备项
 
 新插件 PR 缺以下任何一项时逐条指出：
 
+- `ghost.json` 使用 `schemaVersion: 3`、按该插件实际依赖填写首个稳定版 `minCindyVersion`、
+  不含 `slots`，并以直接顶层字段声明能力；
 - `provisioning.json` 有对应条目，且 audience 取值有 PR 描述里的决策依据
   （尤其 `"all"`）；
 - 四语言 locale 资源齐全（zh-CN/en/ja/ko，`.tests/localization.test.mjs` 口径）；
@@ -101,6 +148,10 @@ PR 新增插件目录（出现新的 `ghost.json`）时，必须通读仓内现�
 - PR 描述包含实机验证说明（在 Cindy 客户端安装 `.cindy` 包实测过哪些工具）；
   没有实测的必须如实标注，reviewer 应在 summary 里显式提示「未经实机验证」。
 
+现有 v2 插件不做专项批量迁移；但 PR 一旦改变该插件目录内会进入 `.cindy` 的实际
+打包内容，就必须在同一 PR 把清单迁移到 v3，并保持能力等价。只改仓库级文档、CI 或
+其它插件时，不得要求顺手迁移未触及的 v2 清单。
+
 ## 其他判定口径
 
 ### 图片资源
@@ -109,6 +160,8 @@ PR 中新增/替换的图片（icon/截图等）：自动 review 无法读取像
 可见信息——文件位于正确 assets 目录、体积合理（icon 不应为数 MB）、文件名无
 不雅词汇、`ghost.json` 的 icon 路径引用有效。图片内容合规性（血腥/暴力/色情）
 由人工 reviewer 在 GitHub 预览中目检，自动 review 不对图片内容本身下结论。
+因此新增或替换图片、二进制文件、预编译资源时不得自动 approve，必须显式转人工
+检查真实内容；仅修改 `ghost.json.icon` 文本路径不等同于替换资源。
 
 ### summary 与置信度表述
 

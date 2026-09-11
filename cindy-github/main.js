@@ -1357,14 +1357,6 @@ bc.onmessage = function (ev) {
     // 注:scope 信息在 X-OAuth-Scopes 响应头里,但主机响应头白名单不透传
     // 自定义头,沙箱拿不到——只报用户名,不做 scope 展示。
     var login = (r.data && r.data.login) || '';
-    try {
-      var kv = await (await fetch('/kv')).json();
-      kv = kv && typeof kv === 'object' ? kv : {};
-      kv.connectedLogin = login;
-      await fetch('/kv', { method: 'PUT', body: JSON.stringify(kv) });
-    } catch (e) {
-      /* 缓存写失败不影响测试结果 */
-    }
     bc.postMessage({
       type: 'test-connection-result', reqId: m.reqId, ok: true,
       login: login, name: (r.data && r.data.name) || '',

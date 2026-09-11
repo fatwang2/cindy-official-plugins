@@ -26,9 +26,18 @@ This is the source for every official plugin (Ghost) in the
   (rows marked "targeted rollout" are still being staged and not yet
   installable for everyone).
 - **Want to build a plugin?** This repository accepts external contributions.
-  Once your PR merges to `main`, the plugin is published to the marketplace
-  automatically — usually live within minutes. Start at
+  Once your PR merges to `main`, the package is submitted automatically to the
+  CN and Global review queues. It becomes visible in a region only after that
+  region approves it. Start at
   [Submit your plugin](#submit-your-plugin).
+
+Already-installed marketplace plugins follow their recorded source and update
+silently. A merged version bump can therefore reach installed users without
+another click or capability-confirmation dialog. Treat capability expansion and
+runtime changes as immediate production changes: declare the minimum required
+capabilities in the package's `ghost.json`, and preserve Host authorization and
+credential boundaries. Marketplace summaries are not a separate installation
+permission gate.
 
 ## Plugins
 
@@ -39,7 +48,7 @@ This is the source for every official plugin (Ghost) in the
 | <img src="./cindy-gitlab/assets/icon.png" width="22" alt=""> | GitLab | [`cindy-gitlab`](./cindy-gitlab) | GitLab (gitlab.com and self-hosted) issues / MRs / repository operations |
 | <img src="./cindy-mermaid/assets/icon.jpg" width="22" alt=""> | Mermaid | [`cindy-mermaid`](./cindy-mermaid) | Mermaid diagram source normalization and common syntax fixes |
 | <img src="./cindy-notion/assets/icon.png" width="22" alt=""> | Notion | [`cindy-notion`](./cindy-notion) | Read/write Notion pages, databases, and knowledge bases |
-| <img src="./cindy-web-search/assets/icon.png" width="22" alt=""> | Web Search | [`cindy-web-search`](./cindy-web-search) | Public web search (Brave / Tavily / Search1API, user-provided API key) |
+| <img src="./cindy-web-search/assets/icon.png" width="22" alt=""> | Web Search | [`cindy-web-search`](./cindy-web-search) | Public web search (Cindy AI by default; optional user-provided Brave / Tavily / Search1API key) |
 | <img src="./world-bank-open-data/assets/icon.png" width="22" alt=""> | World Bank Open Data | [`world-bank-open-data`](./world-bank-open-data) | Public country, economic, social, and development indicators with no API key; staged rollout |
 | <img src="./google-gmail/assets/icon.png" width="22" alt=""> | Gmail | [`google-gmail`](./google-gmail) | Search, read, and organize Gmail, create drafts, and send messages; host-managed OAuth |
 | <img src="./google-drive/assets/icon.png" width="22" alt=""> | Google Drive | [`google-drive`](./google-drive) | Search, read, download, upload, move, and delete Drive files |
@@ -48,7 +57,9 @@ This is the source for every official plugin (Ghost) in the
 | <img src="./163-mail/assets/icon.png" width="22" alt=""> | 163 Mail | [`163-mail`](./163-mail) | Search, read, organize, compose, and send 163 Mail via IMAP/SMTP |
 | <img src="./icloud-mail/assets/icon.png" width="22" alt=""> | iCloud Mail | [`icloud-mail`](./icloud-mail) | Cindy stores the app-specific password securely; manage iCloud Mail via IMAP/SMTP on demand |
 | <img src="./qq-mail/assets/icon.png" width="22" alt=""> | QQ Mail | [`qq-mail`](./qq-mail) | Cindy stores the authorization code securely; search, read, organize, and send via IMAP/SMTP on demand |
+| <img src="./yahoo-mail/assets/icon.png" width="22" alt=""> | Yahoo Mail | [`yahoo-mail`](./yahoo-mail) | Cindy stores the app password securely; manage and send Yahoo Mail via IMAP/SMTP on demand |
 | <img src="./taptap-maker/assets/icon.png" width="22" alt=""> | TapTap Maker | [`taptap-maker`](./taptap-maker) | Account connection, project sync, builds, and official news tools |
+| <img src="./ios-simulator/assets/icon.png" width="22" alt=""> | iOS Simulator | [`ios-simulator`](./ios-simulator) | Host-owned embedded workflow; Host-authorized fallback hands off the exact task and device to a named external workflow; staged rollout |
 | <img src="./x-manager/assets/icon.png" width="22" alt=""> | X Manager | [`x-manager`](./x-manager) | Search X (Twitter) and post to it — xAI x_search with Grok-subscription / API-key fallback, posting via the official X API v2; currently in a targeted rollout |
 
 Missing a plugin you want? [Propose it](#submit-your-plugin) — or build it
@@ -64,38 +75,45 @@ The full path from idea to marketplace:
    (163 / iCloud / QQ mail) are fine, but a second generic web search is not.
 2. **Align** — open a
    [new plugin proposal](https://github.com/makecindy/cindy-official-plugins/issues/new?template=new_plugin_proposal.yml)
-   describing the scenario, boundaries, and required capabilities (network
-   hosts, credentials, Node runtime). Wait for a maintainer ack before writing
+   describing the scenario, boundaries, and any autonomous Host capabilities
+   (network hosts, credentials, long-lived Node runtime). Wait for a maintainer ack before writing
    code — it keeps you from building something that overlaps or won't be
    accepted.
-3. **Build** — in a Cindy conversation, say "help me build a plugin" to get
-   the complete authoring manual (`ghost_forge_guide`: every `ghost.json`
-   field, slots, the `cindy.send` pipe API, packaging). Scaffold with
-   `ghost_forge_scaffold` or copy the layout of any plugin here. Import the
-   directory or a packaged `.cindy` into a dev environment to verify.
+3. **Build** — follow the [harness-independent quick path](#harness-independent-quick-path)
+   with any coding Agent or development environment. The repository documents
+   the file format, runtime messages, validation command, and packaging format;
+   no Cindy-specific authoring tool is required.
 4. **Open a PR** — title `feat(<directory>): …`; bump `ghost.json.version`;
    add the `provisioning.json` entry; complete four-language locales
    (`zh-CN` / `en` / `ja` / `ko`); sign off every commit (`git commit -s`,
    [DCO](./DCO)). Details in [`CONTRIBUTING.md`](./CONTRIBUTING.md).
-5. **Review** — CI runs the localization / provisioning gates plus a packaging
-   dry-run; automated review enforces the full ruleset in
+5. **Review** — CI validates each manifest and the Server/Desktop delivery
+   limits within this repository, checks localization / provisioning,
+   and dry-runs the exact package; automated review enforces the full ruleset in
    [`.greptile/rules.md`](./.greptile/rules.md); a maintainer reviews against
    the same [review standards](#review-standards). Walk through the self-check
    list below before requesting review.
-6. **Ship** — after merge to `main`, the CN and Global publish workflows
-   release the plugin automatically. No manual publishing step; it typically
-   appears in the marketplace within minutes.
+6. **Submit and approve** — after merge to `main`, the CN and Global workflows
+   submit the real package through Plugin Platform. Each region reviews its own
+   pending release; only an approved release becomes available to compatible
+   clients and is then picked up silently by installations following that market
+   source. Rejection leaves the previous approved release in service.
 
 ## Review standards
 
 Every official plugin is installed by real users who carry its security and
 experience risk, so review is strict by design. Four hard principles:
 
-1. **Pure sandbox by default, capabilities declared explicitly.** Regular
-   plugins run in Cindy's isolated sandbox and may only use the network
-   allowlist and host channels declared in `ghost.json`. Official plugins that
-   genuinely need the Node Runtime must explicitly declare the `node` slot, a
-   fixed entry point, and a minimal child-process boundary.
+1. **Pure sandbox by default; authorization follows the executor.** Regular
+   plugins run in Cindy's isolated sandbox. Whether a plugin tool runs is decided
+   by the current `ghost_call` and Cindy's existing Agent authorization. Ordinary
+   HTTPS and workdir operations use the Host-issued, strictly in-flight `callId`;
+   bundled code and CLIs continue to use the existing Node worker. Do not add a
+   Slot or manifest field just to pre-register a specific command, host, or path.
+   A plugin that uses Host capabilities autonomously from a panel,
+   subscription, scheduler, or long-lived process must declare the corresponding
+   direct field in `ghost.json`. An autonomous Node Runtime still requires the
+   top-level `node` field, a fixed entry point, and a minimal child-process boundary.
 2. **Clear secret ownership.** Ordinary API tokens are stored through the
    host's write-only `/secrets` channel. When a Node plugin needs plaintext
    credentials, use `node.secretBindings` to restrict them to specific Worker
@@ -114,9 +132,10 @@ experience risk, so review is strict by design. Four hard principles:
 
 ### Self-check before requesting review
 
-- [ ] `ghost.json` declares only the network hosts and host channels actually
-      used; no `node` slot unless genuinely required
-- [ ] Node plugins: explicit `node` slot, fixed entry, minimal child-process
+- [ ] Execution ownership is explicit: plugin tools use existing Agent authorization,
+      HTTPS/workdir operations use the current `callId`, and CLIs use the existing
+      Node worker without pre-registering individual commands
+- [ ] Node plugins: explicit `node` field, fixed entry, minimal child-process
       boundary; `node/worker.cjs` is an esbuild artifact rebuilt from `src/`
 - [ ] No plaintext credentials anywhere: tokens go through the write-only
       `/secrets` channel or `node.secretBindings`; never through `main.js`,
@@ -129,6 +148,10 @@ experience risk, so review is strict by design. Four hard principles:
 - [ ] User-facing errors are actionable; no raw status codes or stack traces
 - [ ] Four-language locales complete; `node --test .tests/localization.test.mjs`
       passes
+- [ ] Every changed plugin's packaged `.cindy` was installed and exercised on a
+      real device running a stable production Cindy build, and the PR
+      verification box is checked; when the plugin declares `minCindyVersion`,
+      the verified Cindy build is greater than or equal to it
 - [ ] `ghost.json.version` bumped; `provisioning.json` entry present with an
       audience decision stated in the PR
 - [ ] No credentials, real user data, `node_modules`, or unrelated generated
@@ -173,10 +196,10 @@ the catalog layer; self-rendered settings pages are being migrated independently
 to the same host-driven locale contract, while runtime error copy is still
 primarily Chinese-only.
 
-## Automated publishing
+## Automated submission and review
 
-In one sentence: **merging to `main` releases automatically to both regions —
-there is no manual publishing step.**
+In one sentence: **merging to `main` submits automatically to both regions;
+public availability still requires Plugin Platform approval in each region.**
 
 Two workflows publish, and both only from `main`:
 
@@ -185,46 +208,203 @@ Two workflows publish, and both only from `main`:
 - [`publish-cindy-plugins-global.yml`](./.github/workflows/publish-cindy-plugins-global.yml) —
   `Publish Cindy Plugins (Global)`
 
-Both are active and behave identically:
+Both are active and use the same submission flow:
 
-- A regular push to `main` publishes only the plugin directories changed in
-  that push. A push that touches no plugin directory publishes nothing.
-- Manually running a workflow from the Actions page publishes all current
-  plugins in full — for initial setup after a repository migration or an
-  explicit re-release.
-- Each publishes via GitHub Actions OIDC (audience `cindy-plugin`) to its own
-  endpoint, supplied by a repository secret. The two runs package, execute, and
-  report independently; a failure on one side does not affect the other's
-  workflow status. There is no development publishing workflow.
+- A regular push to `main` submits only the plugin directories changed in that
+  push. A push that touches no plugin directory submits nothing.
+- Manually running a workflow from the Actions page submits all current plugins
+  in full — for initial setup after a repository migration or an explicit
+  re-submission.
+- Each workflow uses GitHub Actions OIDC (audience `cindy-plugin`) to call its
+  protected Plugin Platform endpoint. Platform creates a pending release and
+  notifies reviewers; it does not bypass review by calling Plugin Server
+  directly.
+- The two regions package, submit, review, and report independently. Failure or
+  rejection in one region does not affect the other. There is no development
+  publishing workflow.
 
-Because both fire on the same push, one merge that changes a plugin produces two
-releases of it — one per region.
+After approval, compatible clients receive that release; clients below its
+`minCindyVersion` continue to receive the newest older compatible release, when
+one exists. Desktop trusts this Server projection and does not add a second
+version-confirmation step.
 
 When changing plugin content you must bump `ghost.json.version` in the same
-change. Publishing different content under the same version is rejected by the
-server with `RELEASE_VERSION_CONFLICT` and will not overwrite an existing
-release.
+change. The new `major.minor.patch` SemVer must be greater than the version on
+`main`; otherwise CI blocks the pull request before Server submission.
 
 ## Local development
 
-The complete plugin-authoring contract (all `ghost.json` fields, slots, the
-`cindy.send` pipe API, packaging flow) is defined by the manual returned by the
-`ghost_forge_guide` tool built into the Cindy client — just say "help me build
-a plugin" in a Cindy conversation to get it on the spot.
+The authoring contract is defined by this repository: the guidance below and in
+[`CONTRIBUTING.md`](./CONTRIBUTING.md), the pinned Cindy Manifest validator under
+`.tests/contracts/`, and the repository packaging checks. It is independent of
+the Agent or harness used to edit files. Cindy's Forge tools are optional
+shortcuts, not part of the plugin format and not a prerequisite for development.
 
-Typical flow:
+For existing-plugin maintenance, v2/v3 field mappings, and concrete HTTPS,
+file, and Node/CLI calls, use the
+[authoring and migration reference](./docs/plugin-authoring.md). An Agent can
+derive the required adaptations from this reference and the existing code;
+authors do not need to perform a separate migration checklist.
 
-1. Scaffold with the client's `ghost_forge_scaffold`, or copy the layout of any
-   plugin in this repository.
-2. In a dev environment, import the plugin directory or a `.cindy` package
-   directly for verification.
-3. When done, package it with `ghost_forge_pack` into a `.cindy` and install it
-   to verify.
+New plugins use `schemaVersion: 3` and declare capabilities directly through
+fields such as `tools`, `network`, `node`, or `notify: true`; v3 must not contain
+`slots`. Every v3 package declares its own `minCindyVersion`: use the first
+stable Cindy version that supports every Host capability and manifest field
+the concrete plugin actually depends on. Manifest v3 itself does not impose a
+repository-wide Cindy version floor. Existing v2 manifests stay untouched until
+that plugin's packaged content actually changes. The PR that changes it must
+migrate the manifest to v3—there is no repository-wide bulk migration or
+release solely for the schema change.
 
-`taptap-maker/vendor/taptap-maker/` ships the official `@taptap/maker@0.0.28`
+Direct fields describe plugin contributions and **autonomous** Host use. They are
+not a pre-registration list for a specific command, host, or path. Whether the
+plugin tool runs is decided by the current `ghost_call` and existing Agent
+authorization; ordinary HTTPS and workdir operations pass the Host-issued
+`callId` to `cindy.fetch` or `cindy.fs`. Bundled code and CLIs continue to use the
+existing Node worker. Managed credentials and any use outside that in-flight call
+still require the corresponding explicit declaration.
+
+### Harness-independent quick path
+
+Paste this into any coding Agent or harness that can edit files and run commands:
+
+```text
+Using only the authoring contract in this repository, build a Cindy plugin for
+[what it should do]. Read AGENTS.md and docs/plugin-authoring.md, infer the
+necessary declarations and runtime interfaces from the task, and clarify only
+product choices or verification gaps that the repository cannot establish. Create a new
+Manifest-v3 plugin directory without copying an existing v2 ghost.json. Validate
+its manifest with the repository validator, package the directory contents as a
+.cindy ZIP archive, and report the artifact path. Do not install it unless I
+explicitly ask you to.
+```
+
+Create a new directory with this minimum layout:
+
+```text
+my-plugin/
+├── ghost.json
+├── main.js
+└── assets/
+    └── icon.png
+```
+
+Do **not** copy an existing official plugin's `ghost.json`: the repository
+intentionally retains legacy v2 manifests until those plugins change. Existing
+source may be consulted only for implementation patterns.
+
+Start `ghost.json` from this minimal runnable Manifest-v3 shape:
+
+The `1.2.3` below is only an example. Replace it with the first stable Cindy
+version that supports the concrete plugin you are building.
+
+```json
+{
+  "schemaVersion": 3,
+  "minCindyVersion": "1.2.3",
+  "id": "my-plugin",
+  "name": "My Plugin",
+  "description": "A one-sentence description for people.",
+  "whenToUse": "Use this when the user needs the plugin's capability.",
+  "version": "1.0.0",
+  "kind": "chip",
+  "entry": "main.js",
+  "icon": "assets/icon.png",
+  "tools": [
+    {
+      "name": "hello",
+      "description": "Return a greeting to verify that the plugin works.",
+      "parameters": { "type": "object", "properties": {} }
+    }
+  ]
+}
+```
+
+Place a real PNG at `assets/icon.png`. If no icon is ready, remove both the
+`icon` field and the unused `assets/` entry; never package a path declared by
+the Manifest without its file.
+
+Implement the declared tool in `main.js` using the Host message contract:
+
+```js
+cindy.onHostMessage(async function (message) {
+  if (message.type !== 'tool-call' || message.tool !== 'hello') return;
+
+  await cindy.send({
+    type: 'tool-result',
+    callId: message.callId,
+    ok: true,
+    result: { message: 'The plugin is working.' }
+  });
+});
+```
+
+The `callId` belongs to that one in-flight tool call. Return exactly one
+`tool-result` with the same `callId`. Ordinary HTTPS and workdir file operations
+also carry this Host-issued `callId` through `cindy.fetch` and `cindy.fs`; they
+use Cindy's existing runtime authorization instead of pre-registering a command,
+host, or path in the Manifest. Declare a direct top-level capability only for a
+plugin contribution or autonomous Host use outside that in-flight call.
+
+Validate the Manifest from the repository root:
+
+```bash
+node scripts/validate-plugin-manifest.mjs ./my-plugin
+```
+
+A `.cindy` file is a ZIP archive whose root contains `ghost.json`, `main.js`,
+and the declared resources—do not wrap them in an extra `my-plugin/` directory.
+After reviewing and committing the plugin files, create the exact archive from
+Git-tracked `HEAD` content with the repository packager:
+
+```bash
+.github/scripts/package-plugin.sh my-plugin /tmp/my-plugin-1.0.0.cindy
+unzip -Z1 /tmp/my-plugin-1.0.0.cindy
+```
+
+The script uses `git archive` for the plugin directory, adds the fixed repository
+legal files, and validates the result. It intentionally excludes uncommitted and
+untracked files from the plugin directory. Never
+recursively ZIP a plugin working directory: local `.env`, `.npmrc`, private keys,
+or other credentials may be included. If a harness packages an uncommitted
+working copy, it must select an explicit reviewed file list. Before installation
+or sharing, inspect the archive listing for the expected files, no outer plugin
+directory, and no credentials.
+
+The user can import that file through Cindy's local plugin entry. If the chosen
+harness exposes Cindy Forge tools, `ghost_forge_scaffold` can create the same v3
+baseline, `ghost_forge_pack` can validate and package it, and
+`ghost_forge_install` can install it after an explicit user request. These are
+optional accelerators; the source and `.cindy` format are identical.
+
+Before submitting to this official repository, add a `provisioning.json` entry
+and declare locale files for exactly `zh-CN`, `en`, `ja`, and `ko`, covering the
+plugin text and every tool description. Then follow
+[`CONTRIBUTING.md`](./CONTRIBUTING.md) and install the exact packaged `.cindy` on
+a real device running an eligible stable production Cindy build.
+
+`taptap-maker/vendor/taptap-maker/` ships the official `@taptap/maker@0.0.33`
 with the plugin. When upgrading, replace the published npm package content
-wholesale and bump the plugin version accordingly — do not edit the generated
-`dist/maker.js` by hand.
+wholesale and bump the plugin version accordingly. Preserve these reviewed Cindy
+compatibility patches until the official package includes equivalent fixes:
+
+- `normalizeRemoteProxyExecutionState` accepts `executed`, preserving confirmed
+  execution (original patch: `ff54f59`).
+- The BLACKLISTED `tools/call` rejection includes `structuredContent` with
+  `success: false`, its message, and `execution_state: "not_executed"`, so Cindy's
+  error sanitizer retains the execution state.
+- The BLACKLISTED `tools/list` response retains the restricted tool list and adds
+  `_meta.maker_access` with the original code and message. Cindy returns the account
+  restriction and `not_executed` before dispatch rather than a generic missing-tool error.
+- `user-skills pull` rejects existing symlinks in all project/client skill roots before any write.
+- `tools/list`, `resources/read`, and `tools/call` check account access per request
+  instead of using a startup-only `accessStatePromise`; PAT changes take effect
+  without waiting for the old Runtime process to expire. This adds an authentication
+  check to each of these requests; it does not change the upstream access policy.
+
+Apart from these patches and the retained `LICENSE`, vendor files must match the
+official npm package. Recheck the patch list and regression tests on every upgrade;
+do not add unrelated manual bundle edits.
 
 ## Community
 
@@ -255,6 +435,7 @@ attributed in the corresponding plugin directories:
   embedded in `node/worker.cjs`
 - `163-mail/THIRD-PARTY-LICENSES.txt` — same, for the 163 Mail plugin
 - `icloud-mail/THIRD-PARTY-LICENSES.txt` — same, for the iCloud Mail plugin
+- `yahoo-mail/THIRD-PARTY-LICENSES.txt` — same, for the Yahoo Mail plugin
 - `taptap-maker/vendor/taptap-maker/LICENSE` — vendored `@taptap/maker` (MIT)
 
 Apache-2.0 grants no trademark rights. These plugins are unofficial integrations

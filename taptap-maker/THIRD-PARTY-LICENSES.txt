@@ -2,9 +2,16 @@ Third-Party Notices for the Cindy TapTap Maker plugin
 =====================================================
 
 This plugin ships a vendored copy of the official @taptap/maker npm package
-(version 0.0.28, MIT, https://github.com/taptap/instant-games-open-mcp). Its
+(version 0.0.33, MIT, https://github.com/taptap/instant-games-open-mcp). Its
 MIT license text is reproduced in vendor/taptap-maker/LICENSE, which covers
 TapTap's own code only.
+The bundle retains five Cindy compatibility patches: preserve the remote
+executed execution state (original commit ff54f59), return structured
+not_executed state for BLACKLISTED tool-call rejections, and check access per
+request rather than caching it at startup, and retain the BLACKLISTED reason
+in tools/list response metadata, and reject symlinked user-Skill write roots
+before installation. The paired repository READMEs
+document this complete patch list for future upgrades.
 
 vendor/taptap-maker/dist/maker.js is an esbuild bundle produced upstream. It
 additionally embeds the open-source packages listed below, and was built
@@ -17,13 +24,13 @@ The package list was derived from the module paths that esbuild retained as
 comments in the shipped bundle (grep for "^// node_modules/" in maker.js), so
 it reflects the packages actually present in the artifact.
 
-Exact dependency versions are not recorded in the vendored artifact and the
-upstream lockfile for 0.0.28 is not published, so version numbers are
-deliberately omitted rather than guessed. Where a package changed license
-across major versions, the version present in the bundle was identified from
-its file layout: the bundle contains isexe/index.js, isexe/mode.js and
-isexe/windows.js, which is the isexe 2.x layout (ISC) rather than 3.x+
-(BlueOak-1.0.0).
+Exact dependency versions are not recorded in the vendored artifact, and the
+published npm tarball does not include an upstream lockfile. Version numbers
+are therefore deliberately omitted rather than inferred from repository
+state. Where a package changed license across major versions, the version
+present in the bundle was identified from its file layout: the bundle contains
+isexe/index.js, isexe/mode.js and isexe/windows.js, which is the isexe 2.x
+layout (ISC) rather than 3.x+ (BlueOak-1.0.0).
 
 Summary
 -------
@@ -37,10 +44,13 @@ Summary
  - isexe — ISC
  - json-schema-traverse — MIT
  - path-key — MIT
+ - pend — MIT
  - pkce-challenge — MIT
  - shebang-command — MIT
  - shebang-regex — MIT
  - which — ISC
+ - yaml — ISC
+ - yauzl — MIT
  - zod — MIT
  - zod-to-json-schema — ISC
 
@@ -408,6 +418,27 @@ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
 IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ================================================================================
+yaml
+License: ISC
+Author: Eemeli Aro <eemeli@gmail.com>
+Homepage: https://eemeli.org/yaml/
+
+--- LICENSE ---
+Copyright Eemeli Aro <eemeli@gmail.com>
+
+Permission to use, copy, modify, and/or distribute this software for any purpose
+with or without fee is hereby granted, provided that the above copyright notice
+and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
+THIS SOFTWARE.
+
+================================================================================
 zod
 License: MIT
 Author: Colin McDonnell <zod@colinhacks.com>
@@ -458,3 +489,58 @@ WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+================================================================================
+pend
+License: MIT
+
+--- LICENSE ---
+The MIT License (Expat)
+
+Copyright (c) 2014 Andrew Kelley
+
+Permission is hereby granted, free of charge, to any person
+obtaining a copy of this software and associated documentation files
+(the "Software"), to deal in the Software without restriction,
+including without limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of the Software,
+and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+================================================================================
+yauzl
+License: MIT
+
+--- LICENSE ---
+The MIT License (MIT)
+
+Copyright (c) 2014 Josh Wolfe
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

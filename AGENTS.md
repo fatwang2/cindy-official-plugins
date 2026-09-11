@@ -8,9 +8,22 @@ Greptile, etc.). 本文件面向在本仓工作的一切 AI agent：写插件、
 ## What this repository is / 仓库性质
 
 Source of Cindy's official plugins (Ghosts). **Every merge to `main`
-auto-publishes to the plugin marketplace for all users** — security and
+automatically submits the real package to the CN and Global Plugin Platform
+review queues; only approved releases become visible** — security and
 experience risks land on real users, so review is strict by design.
-每次合入 `main` 都会自动发布给全体用户，审查从严。
+每次合入 `main` 都会自动向 CN / Global 审核队列提交真实包，审核通过后才对用户
+可见，审查从严。
+
+## Authoring reference / 编写参考
+
+For plugin creation or maintenance, read the
+[authoring and migration reference](./docs/plugin-authoring.md)
+([中文](./docs/plugin-authoring.zh-CN.md)) alongside the README. It documents
+equivalent v2/v3 declarations, existing runtime APIs, and verification boundaries.
+Infer routine adaptations from the requested functionality and existing code;
+do not require authors to perform the migration checklist themselves.
+编写或维护插件时，依据上述参考与现有代码自行完成格式适配、声明保留和校验；
+只把无法从事实确定的功能取舍、目标版本或实机验证缺口交给作者，不增加手工迁移步骤。
 
 ## Review contract / 审查契约
 
@@ -32,17 +45,23 @@ flagged: a settings page saving the user-entered credential through same-origin
 `PUT /secrets/<key>` (the sanctioned write-only path), and handing credentials
 to an approved third-party runtime (e.g. TapTap Maker) without copying them
 into Cindy KV/Secret or retaining plaintext anywhere else (logs, page state);
-network targets ⊆ `ghost.json` allowlist (Node
-workers reviewed against their fixed endpoints instead); tools with
+autonomous plugin network targets ⊆ `ghost.json` allowlist (ordinary HTTPS
+performed inside the current Agent tool call may instead use the Host-issued,
+strictly in-flight `callId`; managed credentials still require an explicit
+declaration and matching host); plugins declaring the top-level `node` field
+have their autonomous workers reviewed against fixed endpoints instead; tools with
 irreversible external side effects must distinguish "not executed / executed /
 unknown" on every failure path; no `Math.random` for externally-visible ids;
 vendor/dist changes require itemized evidence, never a bare "looks fine".
 
 ## Hard gates before any commit / 提交硬门禁
 
-- Bump `ghost.json.version` for every plugin whose packaged content changed.
-- Run `node --test .tests/localization.test.mjs .tests/provisioning.test.mjs
-  .tests/publish-workflows.test.mjs`, plus the changed plugin's own
+- Bump `ghost.json.version` for every plugin whose packaged content changed;
+  the new `major.minor.patch` SemVer must be greater than the version on `main`.
+- CI must enforce the official repository manifest and package contract in
+  `.tests/plugin-contract.test.mjs` without checking out another repository.
+- Run `node --test .tests/plugin-contract.test.mjs .tests/localization.test.mjs
+  .tests/provisioning.test.mjs .tests/publish-workflows.test.mjs`, plus the changed plugin's own
   `.tests/<plugin>.test.mjs` if present.
 - Four-language locales (`zh-CN` / `en` / `ja` / `ko`) complete;
   `docs/localization.md` defines the English-fallback contract — do not demand
@@ -55,6 +74,11 @@ vendor/dist changes require itemized evidence, never a bare "looks fine".
   of the PR and must not be flagged.
 - Bundled third-party dependencies changed → update that plugin's
   `THIRD-PARTY-LICENSES.txt`.
+- Every changed plugin package requires the PR's production Cindy verification
+  checkbox, attesting that its packaged `.cindy` was installed and exercised on
+  a real device running a stable production Cindy build. If the plugin declares
+  `minCindyVersion`, that Cindy build must be greater than or equal to it.
+  Lowering/removing the field requires maintainer review.
 - Paired bilingual docs (`README.md` ↔ `README.zh-CN.md`, etc.) must change in
   the same PR. 双语文档必须同 PR 同步。
 - Never commit credentials, real user data, or `node_modules`; fixtures use
@@ -69,15 +93,19 @@ mandatory: compare against every existing plugin's `ghost.json`
 same-protocol different providers coexist; duplicate generic capabilities do
 not. New plugins also need: a `provisioning.json` entry with an explicit
 audience decision (prefer staged rollout over `"all"` for first release), and
-real-device verification notes in the PR description.
+real-device verification notes in the PR description. New plugin admission is
+a product decision and always requires maintainer review.
 
 ## Merge policy / 合并纪律
 
-PR-first; `main` is protected by the `main-pr-first` ruleset (1 approving
-review, all threads resolved, required checks including the automated
-`Cindy Plugin Review` verdict). Reviewers report; **merge decisions belong to
-maintainers**. Automated reviewers must never merge, close, or approve.
-自动 reviewer 只出结论，不合并、不关闭、不 approve。
+PR-first; `main` must be protected by the `main-pr-first` ruleset (required CI
+checks, 1 current-head approving review, all threads resolved). Reviewers
+report; **merge decisions belong to maintainers**. Greptile may approve only a
+clean 5/5, non-sensitive PR allowed by the `autoApprove` gate in
+`.greptile/config.json`; sensitive changes always require maintainer approval.
+Automated reviewers may authorize but must never merge or close.
+Greptile 仅可自动授权通过配置门禁的非敏感 5/5 PR；敏感变更必须由维护者人工
+review。自动 reviewer 不合并、不关闭 PR。
 
 ## Reply language / 回复语言
 
