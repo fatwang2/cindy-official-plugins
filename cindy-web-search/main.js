@@ -19,7 +19,11 @@
 var BRAVE_URL = 'https://api.search.brave.com/res/v1/web/search';
 var TAVILY_URL = 'https://api.tavily.com/search';
 var SEARCH1API_URL = 'https://api.search1api.com/search';
-var SEARCH1API_TRANSPORT_MESSAGE = '无法连接 Search1API。请检查网络后重试；若网络正常仍失败，请稍后再试。';
+var SEARCH1API_NETWORK_MESSAGE = '无法连接 Search1API。请检查网络后重试；若网络正常仍失败，请稍后再试。';
+var SEARCH1API_CREDENTIAL_MESSAGE =
+  'Search1API API Key 缺失或未被接受。请到插件详情页填写或更新 Key 后重试。';
+var SEARCH1API_HOST_FAILURE_MESSAGE =
+  'Search1API 请求未能送出。请先确认插件详情页已配置 Search1API API Key，再检查网络后重试。';
 
 function clampLimit(n) {
   var v = typeof n === 'number' && isFinite(n) ? Math.floor(n) : 5;
@@ -114,6 +118,21 @@ async function searchTavily(query, limit) {
   };
 }
 
+/**
+ * Host 未能送出请求时按 errorCode 分类；Host 诊断文本不回显，无法分类时同时给出
+ * 配置 Key 和检查网络两条可执行指引。
+ */
+function hostFailureMessage(r) {
+  var code = r && typeof r.errorCode === 'string' ? r.errorCode.toUpperCase() : '';
+  if (/AUTH|CREDENTIAL|SECRET|KEY|FORBIDDEN|UNAUTHORIZED/.test(code)) {
+    return SEARCH1API_CREDENTIAL_MESSAGE;
+  }
+  if (/NETWORK|TIMEOUT|DNS|OFFLINE|CONNECT|UNREACHABLE/.test(code)) {
+    return SEARCH1API_NETWORK_MESSAGE;
+  }
+  return SEARCH1API_HOST_FAILURE_MESSAGE;
+}
+
 /** Search1API:POST JSON，Key 由主机注入 Authorization:Bearer，引擎不传走 API 默认。 */
 async function searchSearch1api(query, limit) {
   var r;
@@ -129,13 +148,9 @@ async function searchSearch1api(query, limit) {
       }),
     });
   } catch (_err) {
-    return { ok: false, message: SEARCH1API_TRANSPORT_MESSAGE };
+    return { ok: false, message: SEARCH1API_NETWORK_MESSAGE };
   }
-  // Host 失败自带凭证/授权指引时原样转交，只有无指引的传输失败才套用网络故障提示。
-  if (!r || !r.ok) {
-    var hostMessage = r && typeof r.message === 'string' ? r.message.trim() : '';
-    return { ok: false, message: hostMessage || SEARCH1API_TRANSPORT_MESSAGE };
-  }
+  if (!r || !r.ok) return { ok: false, message: hostFailureMessage(r) };
   // 零结果是 200 + 空 results 数组；搜索无法完成时是 502。/search 不用 404 表示无结果，
   // 所以 404 按故障处理。各状态给用户可直接执行的下一步，不裸抛响应正文或 HTTP 状态码:
   // https://www.search1api.com/docs/essentials/error-handling

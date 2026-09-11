@@ -429,28 +429,44 @@ test('Search1API transport failures return an actionable network error', async (
   assert.match(thrownResult.message, /Search1API/);
   assert.doesNotMatch(thrownResult.message, /ENOTFOUND|搜索失败/);
 
-  const silent = createHarness({
+  const network = createHarness({
     networkResult() {
-      return { ok: false };
+      return { ok: false, errorCode: 'NETWORK_UNREACHABLE', message: 'connect ETIMEDOUT 1.2.3.4:443' };
     },
   });
-  const silentResult = await silent.search({ provider: 'search1api' });
-  assert.equal(silentResult.ok, false);
-  assert.match(silentResult.message, /Search1API/);
-  assert.doesNotMatch(silentResult.message, /搜索失败/);
+  const networkResult = await network.search({ provider: 'search1api' });
+  assert.equal(networkResult.ok, false);
+  assert.match(networkResult.message, /检查网络/);
+  assert.doesNotMatch(networkResult.message, /ETIMEDOUT|1\.2\.3\.4/);
 });
 
-test('Search1API keeps the host credential guidance instead of a network message', async () => {
+test('Search1API host credential failures point at the key, not the network', async () => {
   const harness = createHarness({
     networkResult() {
-      return { ok: false, message: '缺少 Search1API API Key，请到插件详情页配置后重试' };
+      return { ok: false, errorCode: 'SECRET_MISSING', message: 'secret search1api_api_key is not configured' };
     },
   });
   const result = await harness.search({ provider: 'search1api' });
 
   assert.equal(result.ok, false);
-  assert.equal(result.message, '缺少 Search1API API Key，请到插件详情页配置后重试');
+  assert.match(result.message, /Key/);
+  assert.match(result.message, /插件详情页/);
   assert.doesNotMatch(result.message, /检查网络/);
+  assert.doesNotMatch(result.message, /search1api_api_key/);
+});
+
+test('Search1API unclassifiable host failures give both remedies and leak no diagnostics', async () => {
+  const harness = createHarness({
+    networkResult() {
+      return { ok: false, message: 'HostFetchError: proxy pipeline aborted (trace 0xdeadbeef)' };
+    },
+  });
+  const result = await harness.search({ provider: 'search1api' });
+
+  assert.equal(result.ok, false);
+  assert.match(result.message, /Key/);
+  assert.match(result.message, /网络/);
+  assert.doesNotMatch(result.message, /HostFetchError|proxy pipeline|0xdeadbeef|搜索失败/);
 });
 
 test('Search1API malformed responses fail without leaking raw bodies', async () => {
