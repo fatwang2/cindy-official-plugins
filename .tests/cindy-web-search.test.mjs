@@ -184,9 +184,10 @@ function createSettingsHarness(options = {}) {
 
 test('manifest declares Cindy Web Search and keeps BYO providers explicit', () => {
   assert.equal(manifest.version, '1.4.0');
-  assert.equal(manifest.minCindyVersion, '0.1.37');
+  assert.equal(manifest.schemaVersion, 3);
+  assert.equal(manifest.minCindyVersion, '0.1.64');
+  assert.equal(Object.hasOwn(manifest, 'slots'), false);
   assert.deepEqual(manifest.cindy, { search: ['web'] });
-  assert.ok(manifest.slots.includes('cindy'));
   assert.deepEqual(manifest.setup, { requires: [] });
   const provider = manifest.tools[0].parameters.properties.provider;
   assert.deepEqual(provider.enum, ['cindy', 'brave', 'tavily', 'search1api']);
@@ -387,10 +388,10 @@ test('disabled Cindy AI honours Search1API as the BYO default', async () => {
   assert.equal(result.result.provider, 'search1api');
 });
 
-test('Search1API documented no-results 404 is a successful empty search', async () => {
+test('Search1API zero results arrive as an empty 200 result set', async () => {
   const harness = createHarness({
     networkResult() {
-      return { ok: true, status: 404, body: '' };
+      return { ok: true, status: 200, body: JSON.stringify({ results: [] }) };
     },
   });
   const result = await harness.search({ provider: 'search1api' });
@@ -400,7 +401,7 @@ test('Search1API documented no-results 404 is a successful empty search', async 
   assert.equal(result.result.results.length, 0);
 });
 
-for (const status of [400, 401, 402, 403, 409, 422, 429, 500, 503, 302]) {
+for (const status of [400, 401, 402, 403, 404, 409, 422, 429, 500, 502, 503, 302]) {
   test(`Search1API ${status} returns an actionable error without a raw status code`, async () => {
     const harness = createHarness({
       networkResult() {

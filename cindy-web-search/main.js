@@ -126,11 +126,15 @@ async function searchSearch1api(query, limit) {
     }),
   });
   if (!r.ok) return r;
-  // Search1API 的公开错误契约把 /search 的 404 定义为“搜索完成但无结果”，
-  // 对搜索工具来说应返回空列表，不是服务故障:
-  // https://www.search1api.com/docs/essentials/error-handling#treat-a-search-404-as-zero-results
-  // 其余状态给用户可直接执行的下一步，不裸抛响应正文或 HTTP 状态码。
-  if (r.status === 404) return { ok: true, provider: 'search1api', results: [] };
+  // 零结果是 200 + 空 results 数组；搜索无法完成时是 502。/search 不用 404 表示无结果，
+  // 所以 404 按故障处理。各状态给用户可直接执行的下一步，不裸抛响应正文或 HTTP 状态码:
+  // https://www.search1api.com/docs/essentials/error-handling
+  if (r.status === 404) {
+    return {
+      ok: false,
+      message: 'Search1API 搜索接口暂时不可用。请稍后再试；若问题持续，请联系 Search1API 支持。',
+    };
+  }
   if (r.status === 401) {
     return { ok: false, message: 'Search1API API Key 无效。请到插件详情页更新 Key 后重试。' };
   }
