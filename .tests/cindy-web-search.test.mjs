@@ -418,6 +418,28 @@ for (const status of [400, 401, 402, 403, 404, 409, 422, 429, 500, 502, 503, 302
   });
 }
 
+test('Search1API transport failures return an actionable network error', async () => {
+  const thrown = createHarness({
+    networkResult() {
+      throw new Error('getaddrinfo ENOTFOUND api.search1api.com');
+    },
+  });
+  const thrownResult = await thrown.search({ provider: 'search1api' });
+  assert.equal(thrownResult.ok, false);
+  assert.match(thrownResult.message, /Search1API/);
+  assert.doesNotMatch(thrownResult.message, /ENOTFOUND|搜索失败/);
+
+  const rejected = createHarness({
+    networkResult() {
+      return { ok: false, message: 'host transport error: socket hang up' };
+    },
+  });
+  const rejectedResult = await rejected.search({ provider: 'search1api' });
+  assert.equal(rejectedResult.ok, false);
+  assert.match(rejectedResult.message, /Search1API/);
+  assert.doesNotMatch(rejectedResult.message, /socket hang up|transport error/);
+});
+
 test('Search1API malformed responses fail without leaking raw bodies', async () => {
   const badJson = createHarness({
     networkResult() {

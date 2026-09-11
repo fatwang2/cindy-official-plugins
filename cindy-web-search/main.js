@@ -19,6 +19,7 @@
 var BRAVE_URL = 'https://api.search.brave.com/res/v1/web/search';
 var TAVILY_URL = 'https://api.tavily.com/search';
 var SEARCH1API_URL = 'https://api.search1api.com/search';
+var SEARCH1API_TRANSPORT_MESSAGE = '无法连接 Search1API。请检查网络后重试；若网络正常仍失败，请稍后再试。';
 
 function clampLimit(n) {
   var v = typeof n === 'number' && isFinite(n) ? Math.floor(n) : 5;
@@ -115,17 +116,22 @@ async function searchTavily(query, limit) {
 
 /** Search1API:POST JSON，Key 由主机注入 Authorization:Bearer，引擎不传走 API 默认。 */
 async function searchSearch1api(query, limit) {
-  var r = await cindy.fetch({
-    url: SEARCH1API_URL,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      query: query,
-      max_results: limit,
-      crawl_results: 0,
-    }),
-  });
-  if (!r.ok) return r;
+  var r;
+  try {
+    r = await cindy.fetch({
+      url: SEARCH1API_URL,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: query,
+        max_results: limit,
+        crawl_results: 0,
+      }),
+    });
+  } catch (_err) {
+    return { ok: false, message: SEARCH1API_TRANSPORT_MESSAGE };
+  }
+  if (!r || !r.ok) return { ok: false, message: SEARCH1API_TRANSPORT_MESSAGE };
   // 零结果是 200 + 空 results 数组；搜索无法完成时是 502。/search 不用 404 表示无结果，
   // 所以 404 按故障处理。各状态给用户可直接执行的下一步，不裸抛响应正文或 HTTP 状态码:
   // https://www.search1api.com/docs/essentials/error-handling
