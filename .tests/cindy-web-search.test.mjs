@@ -429,15 +429,28 @@ test('Search1API transport failures return an actionable network error', async (
   assert.match(thrownResult.message, /Search1API/);
   assert.doesNotMatch(thrownResult.message, /ENOTFOUND|搜索失败/);
 
-  const rejected = createHarness({
+  const silent = createHarness({
     networkResult() {
-      return { ok: false, message: 'host transport error: socket hang up' };
+      return { ok: false };
     },
   });
-  const rejectedResult = await rejected.search({ provider: 'search1api' });
-  assert.equal(rejectedResult.ok, false);
-  assert.match(rejectedResult.message, /Search1API/);
-  assert.doesNotMatch(rejectedResult.message, /socket hang up|transport error/);
+  const silentResult = await silent.search({ provider: 'search1api' });
+  assert.equal(silentResult.ok, false);
+  assert.match(silentResult.message, /Search1API/);
+  assert.doesNotMatch(silentResult.message, /搜索失败/);
+});
+
+test('Search1API keeps the host credential guidance instead of a network message', async () => {
+  const harness = createHarness({
+    networkResult() {
+      return { ok: false, message: '缺少 Search1API API Key，请到插件详情页配置后重试' };
+    },
+  });
+  const result = await harness.search({ provider: 'search1api' });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.message, '缺少 Search1API API Key，请到插件详情页配置后重试');
+  assert.doesNotMatch(result.message, /检查网络/);
 });
 
 test('Search1API malformed responses fail without leaking raw bodies', async () => {

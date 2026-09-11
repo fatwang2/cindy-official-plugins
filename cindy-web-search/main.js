@@ -131,7 +131,11 @@ async function searchSearch1api(query, limit) {
   } catch (_err) {
     return { ok: false, message: SEARCH1API_TRANSPORT_MESSAGE };
   }
-  if (!r || !r.ok) return { ok: false, message: SEARCH1API_TRANSPORT_MESSAGE };
+  // Host 失败自带凭证/授权指引时原样转交，只有无指引的传输失败才套用网络故障提示。
+  if (!r || !r.ok) {
+    var hostMessage = r && typeof r.message === 'string' ? r.message.trim() : '';
+    return { ok: false, message: hostMessage || SEARCH1API_TRANSPORT_MESSAGE };
+  }
   // 零结果是 200 + 空 results 数组；搜索无法完成时是 502。/search 不用 404 表示无结果，
   // 所以 404 按故障处理。各状态给用户可直接执行的下一步，不裸抛响应正文或 HTTP 状态码:
   // https://www.search1api.com/docs/essentials/error-handling
